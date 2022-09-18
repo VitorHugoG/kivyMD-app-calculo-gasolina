@@ -3,7 +3,8 @@ from kivymd.app import MDApp
 from kivymd.uix.behaviors import TouchBehavior
 from kivymd.uix.boxlayout import BoxLayout
 from kivy.properties import ObjectProperty
-from kivy.uix.boxlayout import BoxLayout
+from kivymd.uix.boxlayout import BoxLayout
+from kivymd.uix.list import ThreeLineListItem
 import sqlite3 
 from datetime import date
 
@@ -19,26 +20,32 @@ class MyLayout(BoxLayout):
         self.gasolina = self.scr_mngr.screen1.gasolina.text
         self.alcool = self.scr_mngr.screen1.alcool.text
 
-        if((self.gasolina.isalpha() or self.gasolina == '') | (self.alcool.isalpha() or self.alcool == '')):
+        proibidos = ',;]^`-{}'
+
+        if((self.gasolina.isalpha() or self.gasolina.strip() in proibidos) | (self.alcool.isalpha() or self.alcool.strip() in proibidos)):
             self.scr_mngr.screen1.label.text = 'Digite um valor válido!'
         else:
-            porcentagem_gasolina = float(self.gasolina) * 0.85
+            porcentagem = float(self.alcool)/float(self.gasolina)  
 
-            self.resposta = "Melhor escolha é Alcool" if float(self.alcool) <= porcentagem_gasolina else "Melhor escolha é Gasolina"
+            self.resposta = "Melhor escolha é Alcool " if porcentagem <= 0.85 else "Melhor escolha é Gasolina"
 
             self.scr_mngr.screen1.label.text = self.resposta    
+        self.valor = 0
         
     def inserir_banco(self):
+        
+        proibidos = ',;]^`-{}'
 
         self.gasolina = self.scr_mngr.screen1.gasolina.text
         self.alcool = self.scr_mngr.screen1.alcool.text
 
-        if((self.gasolina.isalpha() or self.gasolina == '') | (self.alcool.isalpha() or self.alcool == '')):
+        if((self.gasolina.isalpha() or self.gasolina.strip() in proibidos) | (self.alcool.isalpha() or self.alcool.strip() in proibidos)):
             self.scr_mngr.screen1.label.text = 'Digite um valor válido!'
         else:
             today = date.today()
+            porcentagem = float(self.alcool)/float(self.gasolina) 
 
-            self.melhor_combustivel = self.gasolina if self.resposta == 'Melhor escolha é Gasolina' else self.alcool
+            self.melhor_combustivel = self.alcool if porcentagem <= 0.85 else self.gasolina
 
             conn = sqlite3.connect('historico_alcool.db')
 
@@ -74,6 +81,8 @@ class MyLayout(BoxLayout):
     
     def mostrar_precos(self):
         
+        self.valor = 0 
+       
         conn = sqlite3.connect('historico_alcool.db')
 
         #Criando um cursor
@@ -86,17 +95,15 @@ class MyLayout(BoxLayout):
 
         dados = c.fetchall()
 
-        linha = ''
         for dado in dados:
-            linha = f'''
-            {linha} \n 
-            ------------------------
-                Preço:{dado[0]}, 
-                Data:{dado[1]},
-                Resposta: {dado[2]} 
-            ------------------------
-            '''
-            self.scr_mngr.screen3.resposta.text = f'{linha}'
+            self.scr_mngr.screen3.container.add_widget(
+                ThreeLineListItem(
+                    text=f'Preço:{dado[0]}', 
+                    secondary_text = f'Data:{dado[1]}',
+                    tertiary_text = f'{dado[2]}',
+                    _height = 180
+                )
+            )
 
 
         #commit 
@@ -107,7 +114,7 @@ class MyLayout(BoxLayout):
 
         conn.close()
 
-    
+            
 
 
 KV = '''
@@ -125,6 +132,12 @@ MyLayout:
             name:'screen2'
             md_bg_color: 'black'
             FloatLayout:
+                Image:
+                    source:'bomba-de-combustivel.png'
+                    size_hint_y: .2
+                    size_hint_x: .2
+                    pos_hint:{"center_x": .5, "center_y": .8}
+
                 MDIconButton:
                     icon: "bluetooth"
                     pos_hint: {"center_x": .5, "center_y": .2}
@@ -138,7 +151,7 @@ MyLayout:
                     line_color: "white"
                     size_hint_x: .5
                     size_hint_y: .1
-                    pos_hint: {"center_x": .5, "center_y": .7}
+                    pos_hint: {"center_x": .5, "center_y": .620}
                     on_press: root.manager.current = 'screen1'
                 
                 MDRectangleFlatButton:
@@ -148,14 +161,22 @@ MyLayout:
                     line_color: "white"
                     size_hint_x: .5
                     size_hint_y: .1
-                    pos_hint: {"center_x": .5, "center_y": .5}
+                    pos_hint: {"center_x": .5, "center_y": .450}
                     on_press: root.manager.current = 'screen3'
                     
         Screen:
             id:screen3
             name:'screen3'
             md_bg_color: 'black'
-            resposta:resposta
+            container:container
+
+
+            MDScrollView:  
+                MDList:
+                    id:container
+                    pos_hint: {"center_x": .5, "center_y": .6}
+                    
+                    
 
             FloatLayout:
                 MDIconButton:
@@ -163,30 +184,17 @@ MyLayout:
                     pos_hint: {"center_x": .1, "center_y": .950}
                     on_press: root.manager.current = 'screen2'
 
-                MDLabel:
-                    text: "Melhores preços"
-                    halign: "center"
-                    theme_text_color: "Custom"
-                    pos_hint: {"center_y": .9 , "center_x": .5}
-                    text_color: "white"
-                    font_style: "H4"
                 
                 MDRaisedButton:
                     text: 'Mostrar'
-                    size_hint_x: .5
+                    size_hint_x: .4
                     size_hint_y: .1
                     md_bg_color: "purple"
-                    pos_hint: {'center_y': .8, 'center_x': .5}
+                    pos_hint: {'center_y': .1, 'center_x': .7}
                     on_release: root.mostrar_precos()
-
-                MDLabel:
-                    id: resposta
-                    text: ""
-                    halign: "center"
-                    theme_text_color: "Custom"
-                    pos_hint: {"center_y": .5, "center_x": .450}
-                    text_color: "white"
-                    font_size:20
+                
+                
+            
 
         Screen:
             id:screen1
@@ -214,9 +222,9 @@ MyLayout:
                     id: alcool
                     hint_text: "Alcool"
                     helper_text: "Digite o valor do alcool"
-                    pos_hint: {"center_y": .7 , "center_x": .5}
+                    pos_hint: {"center_y": .8 , "center_x": .5}
                     size_hint_x: .8
-                    size_hint_y: .120
+                    size_hint_y: .1
                     input_filter: 'float'
                     required: True
                 
@@ -225,9 +233,9 @@ MyLayout:
                     id: gasolina
                     hint_text: "Gasolina"
                     helper_text: "Digite o valor da Gasolina"
-                    pos_hint: {"center_y": .5 , "center_x": .5}
+                    pos_hint: {"center_y": .6 , "center_x": .5}
                     size_hint_x: .8
-                    size_hint_y: .120
+                    size_hint_y: .1
                     input_filter: 'float'
                     required: True
         
@@ -236,7 +244,7 @@ MyLayout:
                     size_hint_x: .5
                     size_hint_y: .1
                     md_bg_color: "purple"
-                    pos_hint: {'center_y': .320, 'center_x': .5}
+                    pos_hint: {'center_y': .420, 'center_x': .5}
                     on_release: root.calcular()
 
                 MDRectangleFlatIconButton:
@@ -245,8 +253,9 @@ MyLayout:
                     size_hint_y: .1
                     line_color: 0,0,0,0
                     md_bg_color: "purple"
+                    text_color: "white"
                     icon: "database-arrow-up-outline"
-                    pos_hint: {"center_x": .5, "center_y": .2}
+                    pos_hint: {"center_x": .5, "center_y": .280}
                     on_release: root.inserir_banco()
                     
                 
@@ -264,7 +273,7 @@ MyLayout:
 '''
 
 
-class Example(MDApp):
+class Projeto(MDApp):
     def build(self):
         self.theme_cls.theme_style = "Dark"
         
@@ -298,4 +307,4 @@ class Example(MDApp):
         return Builder.load_string(KV)
 
 
-Example().run()
+Projeto().run()
